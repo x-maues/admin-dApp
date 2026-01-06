@@ -1,6 +1,6 @@
 'use client'
 
-import { useAccount, useReadContract, useWriteContract } from 'wagmi'
+import { useAccount, useChainId, useReadContract, useWriteContract } from 'wagmi'
 import { useState } from 'react'
 import { INR_TOKEN } from '../../contracts/INRToken'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
@@ -82,9 +82,9 @@ export default function AdminPage() {
         })
     }
 
-    const sectionClass = "bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5 transition-shadow hover:shadow-md"
-    const buttonBase = "px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-    const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+    const chainId = useChainId()
+    const REQUIRED_CHAIN_ID = 84532
+
     if(!address)
         return (
     
@@ -93,12 +93,42 @@ export default function AdminPage() {
                 <ConnectButton />
                 </main> 
             </div>)
+    if (chainId !== REQUIRED_CHAIN_ID) {
+        return (
+          <main className="flex min-h-screen items-center justify-center">
+            <div className="bg-white border rounded-xl p-6 text-center space-y-4">
+              <h2 className="text-lg font-semibold">Wrong Network</h2>
+              <p className="text-sm text-gray-600">
+                Please switch to <strong>Base Sepolia</strong> to interact with the contract.
+              </p>
+              <ConnectButton />
+            </div>
+          </main>
+        )
+      }
+      
+    console.log('Connected address:', address)
+    console.log('PAUSER_ROLE bytes32:', pauserRole)
+    console.log('isPauser:', isPauser)
+      
+
+    const sectionClass = "bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5 transition-shadow hover:shadow-md"
+    const buttonBase = "px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+    const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
+    
 
 
     return (
         <main className="min-h-screen bg-gray-50/50 py-10 px-4">
             <div className="max-w-2xl mx-auto space-y-6">
-                
+            <p className="text-sm text-gray-900">
+                Network:{' '}
+                {chainId === 84532 && 'Base Sepolia'}
+               
+                {!chainId && 'Unknown'}
+                {chainId != 84532 && 'Please switch to Base Sepolia!!'}
+            </p>
+
         
                 <div className="space-y-6 mb-8">
                     <Link

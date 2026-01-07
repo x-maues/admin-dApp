@@ -6,7 +6,8 @@ import {
   optimism,
   polygon,
   sepolia,
-  baseSepolia
+  baseSepolia,
+  polygonAmoy
 
 } from 'wagmi/chains';
 
@@ -15,11 +16,14 @@ export const config = getDefaultConfig({
   projectId: 'YOUR_PROJECT_ID',
   chains: [
     baseSepolia,
+    base,
     mainnet,
+    sepolia,
     polygon,
+    polygonAmoy,
     optimism,
     arbitrum,
-    base,
+   
     ...(process.env.NEXT_PUBLIC_ENABLE_TESTNETS === 'true' ? [sepolia] : []),
   ],
   ssr: true,

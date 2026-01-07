@@ -2,263 +2,274 @@
 
 import { useAccount, useChainId, useReadContract, useWriteContract } from 'wagmi'
 import { useState } from 'react'
-import { INR_TOKEN } from '../../contracts/INRToken'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import Link from 'next/link'
 
+import { INR_TOKEN_ABI } from '../../contracts/INRToken'
+
+
+
 const isAddress = (s: string) => /^0x[a-fA-F0-9]{40}$/.test(s)
 
+const INR_TOKEN_ADDRESS: Record<number, `0x${string}`> = {
+  84532: '0x941cD55bD4E103906ABCBf28D5CCda2f103110e3', 
+}
+
+
+
+function useInrToken() {
+  const chainId = useChainId()
+  const address = chainId ? INR_TOKEN_ADDRESS[chainId] : undefined
+
+  if (!address) return undefined
+
+  return {
+    address,
+    abi: INR_TOKEN_ABI,
+  } as const
+}
+
+
+
 export default function AdminPage() {
+  const { address } = useAccount()
+  const { writeContract, isPending } = useWriteContract()
+  const inrToken = useInrToken()
 
-    const { address } = useAccount()
-    const { writeContract, isPending } = useWriteContract()
+  const [single, setSingle] = useState('')
+  const [batch, setBatch] = useState<string[]>([])
 
-    const { data: paused } = useReadContract({
-        ...INR_TOKEN,
-        functionName: 'paused',
-    })
 
-    const { data: pauserRole } = useReadContract({
-        ...INR_TOKEN,
-        functionName: 'PAUSER_ROLE',
-    })
 
-    const { data: blacklistAdminRole } = useReadContract({
-        ...INR_TOKEN,
-        functionName: 'BLACKLIST_ADMIN_ROLE',
-    })
+  const { data: paused } = useReadContract(
+    inrToken
+      ? { ...inrToken, functionName: 'paused' }
+      : undefined
+  )
 
-    const { data: isPauser } = useReadContract({
-        ...INR_TOKEN,
-        functionName: 'hasRole',
-        args: pauserRole && address ? [pauserRole, address] : undefined,
-        query: { enabled: !!pauserRole && !!address },
-    })
+  const { data: pauserRole } = useReadContract(
+    inrToken
+      ? { ...inrToken, functionName: 'PAUSER_ROLE' }
+      : undefined
+  )
 
-    const { data: isBlacklistAdmin } = useReadContract({
-        ...INR_TOKEN,
-        functionName: 'hasRole',
-        args: blacklistAdminRole && address ? [blacklistAdminRole, address] : undefined,
-        query: { enabled: !!blacklistAdminRole && !!address },
-    })
+  const { data: blacklistRole } = useReadContract(
+    inrToken
+      ? { ...inrToken, functionName: 'BLACKLIST_ADMIN_ROLE' }
+      : undefined
+  )
 
-    const [single, setSingle] = useState('')
-    const [batch, setBatch] = useState<string[]>([])
-
-    const togglePause = () => {
-        writeContract({
-            ...INR_TOKEN,
-            functionName: paused ? 'unpause' : 'pause',
-        })
-    }
-
-    const blacklistSingle = (status: boolean) => {
-        writeContract({
-            ...INR_TOKEN,
-            functionName: 'setBlacklisted',
-            args: [single, status],
-        })
-    }
-
-    const uploadBatch = (file: File) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-            const text = reader.result as string
-            const addresses = text
-                .split(/[\n,]/)
-                .map(s => s.trim())
-                .filter(isAddress)
-
-            setBatch(Array.from(new Set(addresses)))
+  const { data: isPauser } = useReadContract(
+    inrToken && pauserRole && address
+      ? {
+          ...inrToken,
+          functionName: 'hasRole',
+          args: [pauserRole, address],
         }
-        reader.readAsText(file)
+      : undefined
+  )
+
+  const { data: isBlacklistAdmin } = useReadContract(
+    inrToken && blacklistRole && address
+      ? {
+          ...inrToken,
+          functionName: 'hasRole',
+          args: [blacklistRole, address],
+        }
+      : undefined
+  )
+
+
+  const togglePause = () => {
+    if (!inrToken || paused === undefined) return
+
+    writeContract({
+      ...inrToken,
+      functionName: paused ? 'unpause' : 'pause',
+    })
+  }
+
+  const blacklistSingle = (status: boolean) => {
+    if (!inrToken || !isAddress(single)) return
+
+    writeContract({
+      ...inrToken,
+      functionName: 'setBlacklisted',
+      args: [single, status],
+    })
+  }
+
+  const uploadBatch = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = reader.result as string
+      const addresses = text
+        .split(/[\n,]/)
+        .map(s => s.trim())
+        .filter(isAddress)
+
+      setBatch(Array.from(new Set(addresses)))
     }
+    reader.readAsText(file)
+  }
 
-    const submitBatch = (status: boolean) => {
-        writeContract({
-            ...INR_TOKEN,
-            functionName: 'setBlacklistedBatch',
-            args: [batch, status],
-        })
-    }
+  const submitBatch = (status: boolean) => {
+    if (!inrToken || batch.length === 0) return
 
-    const chainId = useChainId()
-    const REQUIRED_CHAIN_ID = 84532
+    writeContract({
+      ...inrToken,
+      functionName: 'setBlacklistedBatch',
+      args: [batch, status],
+    })
+  }
 
-    if(!address)
-        return (
-    
-            <div> 
-                <main className="flex-1 flex flex-col justify-center items-center py-20">
-                <ConnectButton />
-                </main> 
-            </div>)
-    if (chainId !== REQUIRED_CHAIN_ID) {
-        return (
-          <main className="flex min-h-screen items-center justify-center">
-            <div className="bg-white border rounded-xl p-6 text-center space-y-4">
-              <h2 className="text-lg font-semibold">Wrong Network</h2>
-              <p className="text-sm text-gray-600">
-                Please switch to <strong>Base Sepolia</strong> to interact with the contract.
-              </p>
-              <ConnectButton />
-            </div>
-          </main>
-        )
-      }
-      
-    console.log('Connected address:', address)
-    console.log('PAUSER_ROLE bytes32:', pauserRole)
-    console.log('isPauser:', isPauser)
-      
+ 
 
-    const sectionClass = "bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5 transition-shadow hover:shadow-md"
-    const buttonBase = "px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-    const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:bg-white transition-all"
-    
-
-
+  if (!address) {
     return (
-        <main className="min-h-screen bg-gray-50/50 py-10 px-4">
-            <div className="max-w-2xl mx-auto space-y-6">
-            <p className="text-sm text-gray-900">
-                Network:{' '}
-                {chainId === 84532 && 'Base Sepolia'}
-               
-                {!chainId && 'Unknown'}
-                {chainId != 84532 && 'Please switch to Base Sepolia!!'}
-            </p>
-
-        
-                <div className="space-y-6 mb-8">
-                    <Link
-                        href="/"
-                        className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                        ← Home
-                    </Link>
-                    
-                    <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <h1 className="text-2xl font-bold tracking-tight text-gray-900">INR Token Admin</h1>
-                        <ConnectButton showBalance={false} chainStatus="icon" />
-                    </header>
-                </div>
-
-                <section className={sectionClass}>
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-gray-900">Pause control</h2>
-                        
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${paused ? 'bg-red-50 text-red-700 border-red-100' : 'bg-green-50 text-green-700 border-green-100'}`}>
-                            <span className={`w-2 h-2 rounded-full ${paused ? 'bg-red-500' : 'bg-green-500'}`} />
-                            {paused === undefined ? 'Loading...' : paused ? 'Paused' : 'Active'}
-                        </div>
-                    </div>
-
-                    <button
-                        disabled={!isPauser || isPending}
-                        onClick={togglePause}
-                        className={`w-full ${buttonBase} ${
-                            paused
-                                ? 'bg-green-600 text-white hover:bg-green-700'
-                                : 'bg-red-600 text-white hover:bg-red-700'
-                        }`}
-                    >
-                        {paused ? 'Unpause' : 'Pause'}
-                    </button>
-
-                    {!isPauser && (
-                        <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 text-center">
-                            You do not have PAUSER_ROLE
-                        </p>
-                    )}
-                </section>
-
-               
-                <section className={sectionClass}>
-                    <h2 className="text-lg font-semibold text-gray-900">Blacklist a single address</h2>
-
-                    <input
-                        className={inputClass}
-                        placeholder="0x..."
-                        value={single}
-                        onChange={e => setSingle(e.target.value)}
-                    />
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            disabled={!isBlacklistAdmin || !isAddress(single) || isPending}
-                            onClick={() => blacklistSingle(true)}
-                            className={`${buttonBase} bg-red-600 text-white hover:bg-red-700`}
-                        >
-                            Blacklist
-                        </button>
-                        <button
-                            disabled={!isBlacklistAdmin || !isAddress(single) || isPending}
-                            onClick={() => blacklistSingle(false)}
-                            className={`${buttonBase} bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:text-gray-900`}
-                        >
-                            Unblacklist
-                        </button>
-                    </div>
-
-                    {!isBlacklistAdmin && (
-                        <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 text-center">
-                            You do not have BLACKLIST_ADMIN_ROLE
-                        </p>
-                    )}
-                </section>
-
-          
-                <section className={sectionClass}>
-                    <h2 className="text-lg font-semibold text-gray-900">Batch Blacklist</h2>
-
-                    <input
-                        type="file"
-                        accept=".csv,.txt"
-                        onChange={e => e.target.files && uploadBatch(e.target.files[0])}
-                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
-                    />
-
-                    {batch.length > 0 && (
-                        <div className="space-y-4 pt-2">
-                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                                <p className="text-xs font-medium text-gray-500 mb-2">
-                                    {batch.length} addresses loaded
-                                </p>
-
-                                <div className="max-h-32 overflow-y-auto font-mono text-xs text-gray-600 space-y-1">
-                                    {batch.slice(0, 10).map(a => (
-                                        <div key={a} className="truncate">{a}</div>
-                                    ))}
-                                    {batch.length > 10 && <div className="text-gray-400">…</div>}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    disabled={!isBlacklistAdmin || isPending}
-                                    onClick={() => submitBatch(true)}
-                                    className={`${buttonBase} bg-red-600 text-white hover:bg-red-700`}
-                                >
-                                    Blacklist Batch
-                                </button>
-                                <button
-                                    disabled={!isBlacklistAdmin || isPending}
-                                    onClick={() => submitBatch(false)}
-                                    className={`${buttonBase} bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:text-gray-900`}
-                                >
-                                    Unblacklist Batch
-                                </button>
-                            </div>
-                            {!isBlacklistAdmin && (
-                        <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 text-center">
-                            You do not have BLACKLIST_ADMIN_ROLE
-                        </p>
-                    )}
-                        </div>
-                    )}
-                </section>
-            </div>
-        </main>
+      <main className="min-h-screen flex items-center justify-center">
+        <ConnectButton />
+      </main>
     )
+  }
+
+  if (!inrToken) {
+    return (
+      <main className="min-h-screen flex items-center text-center justify-center text-red-600">
+        <div className='text-xl p-10'>No contract deployed on this network<br/>(consider switching networks)</div>
+        
+        <ConnectButton />
+      </main>
+    )
+  }
+
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-xl mx-auto py-10 space-y-6">
+        <Link href="/" className="text-xl py-6 text-gray-500 underline">
+          ← Home
+        </Link>
+
+        <header className="flex justify-between py-6 items-center">
+          <h1 className="text-2xl font-bold">INR Token Admin</h1>
+          <ConnectButton showBalance={false} />
+        </header>
+
+
+        <section className="bg-white p-4 rounded-lg border space-y-3">
+          <div className="flex justify-between">
+            <h2 className="font-semibold">Pause</h2>
+            <span className={paused ? 'text-red-600' : 'text-green-600'}>
+              {paused === undefined ? 'Loading' : paused ? 'Paused' : 'Active'}
+            </span>
+          </div>
+
+          <button
+            disabled={!isPauser || isPending}
+            onClick={togglePause}
+            className="w-full bg-black text-white py-2 rounded disabled:opacity-50"
+          >
+            {paused ? 'Unpause' : 'Pause'}
+          </button>
+
+          {isPauser === false && (
+            <p className="text-sm text-red-600 text-center">
+              You do not have PAUSER_ROLE
+            </p>
+          )}
+        </section>
+
+
+        <section className="bg-white p-4 rounded-lg border space-y-3">
+          <h2 className="font-semibold">Blacklist Address</h2>
+
+          <input
+            value={single}
+            onChange={e => setSingle(e.target.value)}
+            placeholder="0x..."
+            className="w-full p-2 border rounded font-mono"
+          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              disabled={!isBlacklistAdmin || isPending}
+              onClick={() => blacklistSingle(true)}
+              className="bg-red-600 text-white py-2 rounded disabled:opacity-50"
+            >
+              Blacklist
+            </button>
+
+            <button
+              disabled={!isBlacklistAdmin || isPending}
+              onClick={() => blacklistSingle(false)}
+              className="border py-2 rounded disabled:opacity-50"
+            >
+              Unblacklist
+            </button>
+          </div>
+
+          {isBlacklistAdmin === false && (
+            <p className="text-sm text-red-600 text-center">
+              You do not have BLACKLIST_ADMIN_ROLE
+            </p>
+          )}
+        </section>
+
+      
+        <section className="bg-white p-4 rounded-lg border space-y-3">
+          <h2 className="font-semibold">Batch Blacklist</h2>
+
+          <input
+            type="file"
+            accept=".csv,.txt"
+            onChange={e => e.target.files && uploadBatch(e.target.files[0])}
+          />
+
+          {batch.length > 0 && (
+            <>
+              <p className="text-sm text-gray-600">
+                {batch.length} addresses loaded
+              </p>
+
+              <div className="max-h-40 overflow-y-auto border rounded p-2 bg-gray-50 font-mono text-xs space-y-1">
+                {batch.map((addr, i) => (
+                <div key={addr} className="text-gray-700">
+                {i + 1}. {addr}
+            </div>
+        ))}
+        </div>
+              
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  disabled={!isBlacklistAdmin || isPending}
+                  onClick={() => submitBatch(true)}
+                  className="bg-red-600 text-white py-2 rounded disabled:opacity-50"
+                >
+                  Blacklist
+                </button>
+
+                <button
+                  disabled={!isBlacklistAdmin || isPending}
+                  onClick={() => submitBatch(false)}
+                  className="border py-2 rounded disabled:opacity-50"
+                >
+                  Unblacklist
+                </button>
+              </div>
+            </>
+          )}
+
+          <a
+            href="data:text/csv;charset=utf-8,0x1111111111111111111111111111111111111111%0A0x2222222222222222222222222222222222222222"
+            download="blacklist_sample.csv"
+            className="text-sm underline text-gray-500"
+          >
+            Download sample CSV
+          </a>
+        </section>
+      </div>
+    </main>
+  )
 }

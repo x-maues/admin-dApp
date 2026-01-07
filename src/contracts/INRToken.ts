@@ -1,6 +1,4 @@
-export const INR_TOKEN = {
-    address: '0x941cD55bD4E103906ABCBf28D5CCda2f103110e3',
-    abi: [
+export const INR_TOKEN_ABI = [
         {
             "inputs": [],
             "name": "pause",
@@ -63,7 +61,5 @@ export const INR_TOKEN = {
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
-        }
-    ],
-
-} as const
+        },
+    ] as const

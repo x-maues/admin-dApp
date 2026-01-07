@@ -31,7 +31,7 @@ const Home: NextPage = () => {
         </Link>
 
         <div className="mt-12 p-6 bg-gray-50 rounded-lg border border-gray-200 max-w-2xl">
-          <h2 className="text-xl font-semibold mb-4">Contract Info</h2>
+          <h2 className="text-xl font-semibold mb-4">Deployments</h2>
           <div className=" text-gray-900 mb-2">
             Contract Address -
             <div className="bg-gray-900 text-white px-2 py-1 rounded font-mono">
